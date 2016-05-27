@@ -14,6 +14,8 @@ const Snake = (function() {
     var DESKTOP_SPEED = 100;
     var DESKTOP_SIZE = 20;
 
+    var TIME_DOUBLE_SPEED = 1000; // milliseconds
+
     var DESKTOP_CHEAT = "up,left,down,left,right,right,right";
     var MOBILE_CHEAT = "up left,down left,down right,down left,up right,up right,up right";
 
@@ -35,7 +37,10 @@ const Snake = (function() {
 
     var positions;              // 2D array to keep track of positions. 0 = blank, 1 = obstacle, 2 = food
 
-    var loop;                   // interval loop object
+    var loopPlayer;                   // interval loop object for Player
+    var loopEnemy;                   // interval loop object for Enemy
+
+    var doubleSpeed;
 
     var snakes;                 // array for all snakes
 
@@ -49,98 +54,132 @@ const Snake = (function() {
     //var tail;                   // pointer to the tail block
     //var head;                   // pointer to head block
 
-    function update() {
-        for (var num = 0; num < snakes_count; num++) {
-            if (snakes[num] == null) continue;
-            var theSnake = snakes[num];
-            
-            // execute cheat
-            if (cheatEnabled) {
-                // validate the cheat method
-                if (Cheat && typeof(Cheat.cheat) == "function") {
-                    var new_direction = Cheat.cheat();      // execute cheat
+    function update(num) {
+        var theSnake = snakes[num];
+        // execute cheat
+        if (cheatEnabled) {
+            // validate the cheat method
+            if (Cheat && typeof(Cheat.cheat) == "function") {
+                var new_direction = Cheat.cheat();      // execute cheat
 
-                    // validate returned direction
-                    if (new_direction &&                                                                            // direction exists
-                        typeof(new_direction.x) == "number" && new_direction.x >= -1 && new_direction.x <= 1 &&     // x is a number between -1 and 1
-                        typeof(new_direction.y) == "number" && new_direction.y >= -1 && new_direction.y <= 1 &&     // y is a number between -1 and 1
-                        (Math.abs(new_direction.x) + Math.abs(new_direction.y) == 1) &&                             // not a diagonal move or no move
-                        !(new_direction.x == 0 && direction.x == 0) &&                                              // not a 180
-                        !(new_direction.y == 0 && direction.y == 0) ) {
-                        direction = new_direction;
-                    }
-                }
-                else {
-                    // disable cheat
-                    cheatEnabled = false;
-                    $("#board").removeClass("red-border");
-                    $(".button").removeClass("red-border");
+                // validate returned direction
+                if (new_direction &&                                                                            // direction exists
+                    typeof(new_direction.x) == "number" && new_direction.x >= -1 && new_direction.x <= 1 &&     // x is a number between -1 and 1
+                    typeof(new_direction.y) == "number" && new_direction.y >= -1 && new_direction.y <= 1 &&     // y is a number between -1 and 1
+                    (Math.abs(new_direction.x) + Math.abs(new_direction.y) == 1) &&                             // not a diagonal move or no move
+                    !(new_direction.x == 0 && direction.x == 0) &&                                              // not a 180
+                    !(new_direction.y == 0 && direction.y == 0) ) {
+                    direction = new_direction;
                 }
             }
-
-            if(num > 0) {
-                if (Cheat && typeof(Cheat.cheat) == "function") {
-                    var new_direction = Cheat.cheat(num);      // execute cheat
-
-                    // validate returned direction
-                    if (new_direction &&                                                                            // direction exists
-                        typeof(new_direction.x) == "number" && new_direction.x >= -1 && new_direction.x <= 1 &&     // x is a number between -1 and 1
-                        typeof(new_direction.y) == "number" && new_direction.y >= -1 && new_direction.y <= 1 &&     // y is a number between -1 and 1
-                        (Math.abs(new_direction.x) + Math.abs(new_direction.y) == 1) &&                             // not a diagonal move or no move
-                        !(new_direction.x == 0 && theSnake.direction.x == 0) &&                                              // not a 180
-                        !(new_direction.y == 0 && theSnake.direction.y == 0)  && Math.random() < enemy_mind) {
-                        theSnake.direction = new_direction;
-                    }
-                }
+            else {
+                // disable cheat
+                cheatEnabled = false;
+                $("#board").removeClass("red-border");
+                $(".button").removeClass("red-border");
             }
-
-            // set new position
-            var x = theSnake.head.x + theSnake.direction.x;
-            var y = theSnake.head.y + theSnake.direction.y;
-
-            // check position
-            var check = checkPosition(x, y);
-            if (check == 1) {                   // hit something
-                if(num == 0) {
-                    gameOver();
-                    return;
-                } 
-                else {
-                    for (var ib = 0; ib < theSnake.blocks.length; ib++) {
-                        var theBlock = snakes[num].blocks[ib];
-                        positions[theBlock.x][theBlock.y] = 0;
-                        $(theBlock).remove();
-                    }
-                    snakes[num] = null;
-                    continue;
-                }
-            }
-            else if (check == 2) {              // hit food
-                if(num > 0) {
-                    score_enemy++;
-                }
-                else {
-                    score++;
-                }
-                createBlock(theSnake,0,0)
-                placeFood();
-            }
-
-            // move tail block to front
-            positions[theSnake.tail.x][theSnake.tail.y] = 0;
-            positions[x][y] = 1;
-            moveTo(theSnake.tail, x, y);
-
-            $(theSnake.head).removeClass('head');
-            // update linked list
-            theSnake.head.next = theSnake.tail;
-            theSnake.head = theSnake.tail;
-            theSnake.tail = theSnake.tail.next;
-
-            $(theSnake.head).addClass('head');
-
-            turned = false;
         }
+
+        if(num > 0) {
+            if (CheatEnemy && typeof(CheatEnemy.cheat) == "function") {
+                var new_direction = CheatEnemy.cheat(num);      // execute cheat
+
+                // validate returned direction
+                if (new_direction &&                                                                            // direction exists
+                    typeof(new_direction.x) == "number" && new_direction.x >= -1 && new_direction.x <= 1 &&     // x is a number between -1 and 1
+                    typeof(new_direction.y) == "number" && new_direction.y >= -1 && new_direction.y <= 1 &&     // y is a number between -1 and 1
+                    (Math.abs(new_direction.x) + Math.abs(new_direction.y) == 1) &&                             // not a diagonal move or no move
+                    !(new_direction.x == 0 && theSnake.direction.x == 0) &&                                              // not a 180
+                    !(new_direction.y == 0 && theSnake.direction.y == 0)  && Math.random() < enemy_mind) {
+                    theSnake.direction = new_direction;
+                }
+            }
+        }
+
+        // set new position
+        var x = theSnake.head.x + theSnake.direction.x;
+        var y = theSnake.head.y + theSnake.direction.y;
+
+        // check position
+        var check = checkPosition(x, y);
+        if (check == 1) {                   // hit something
+            if(num == 0) {
+                gameOver();
+                return;
+            } 
+            else {
+                for (var ib = 0; ib < theSnake.blocks.length; ib++) {
+                    var theBlock = theSnake.blocks[ib];
+                    positions[theBlock.x][theBlock.y] = 0;
+                    $(theBlock).remove();
+                }
+                snakes[num] = null;
+                return;
+            }
+        }
+        else if (check == 2) {              // hit food
+            if(num > 0) {
+                score_enemy++;
+            }
+            else {
+                score++;
+            }
+            createBlock(theSnake,0,0)
+            placeFood();
+        }
+
+        updateBoard(theSnake, x, y);
+
+    }
+
+    function updatePlayer() {
+        update(0);
+    }
+
+    function updateEnemy() {
+        for (var num = 1; num < snakes_count; num++) {
+            if (snakes[num] == null) continue;
+                update(num);
+        }
+    }
+
+    function updateBoard(theSnake, x, y) {
+        // move tail block to front
+        positions[theSnake.tail.x][theSnake.tail.y] = 0;
+        positions[x][y] = 1;
+        moveTo(theSnake.tail, x, y);
+
+        $(theSnake.head).removeClass('head');
+        // update linked list
+        theSnake.head.next = theSnake.tail;
+        theSnake.head = theSnake.tail;
+        theSnake.tail = theSnake.tail.next;
+
+        $(theSnake.head).addClass('head');
+
+        turned = false;
+    }
+
+    function beginDoubleSpeed() {
+        if(doubleSpeed == null) {
+            loseTail(snakes[0]);
+            clearInterval(loopPlayer);
+            loopPlayer = setInterval(updatePlayer, SPEED/2);
+            doubleSpeed = setTimeout(endDoubleSpeed, TIME_DOUBLE_SPEED);
+        }
+    }
+
+    function endDoubleSpeed() {
+        clearInterval(loopPlayer);
+        loopPlayer = setInterval(updatePlayer, SPEED);
+        doubleSpeed = null;
+    }
+
+    function createFood() {
+        var food = document.createElement("div");
+        food.className = "block food";
+        $(food).css("height", SIZE);
+        $(food).css("width", SIZE);
     }
 
     function placeFood() {
@@ -157,14 +196,19 @@ const Snake = (function() {
         else placeFood();
     }
 
+    function placeFoodTo(food, x, y) {
+        moveTo($(food), x, y);
+        positions[x][y] = 2;
+        food.x = x;
+        food.y = y;
+    }
+
     function gameOver() {
         stopGame();
         $("#message").empty().append(score + " : " + score_enemy);
         $(".block").css("zIndex", 0);
         $("#message").css("zIndex", 1);
         $("#message").show();
-        score = 0;
-        score_enemy = 0;
         set = false;
     }
 
@@ -181,6 +225,10 @@ const Snake = (function() {
         $(block).css("left", x * SIZE + "px");
         block.x = x;
         block.y = y;
+    }
+
+    function loseTail(theSnake) {
+        
     }
 
     function createBlock(theSnake, x, y, head) {
@@ -204,12 +252,14 @@ const Snake = (function() {
 
     function startGame() {
         // start update loop
-        loop = setInterval(update, SPEED);
+        loopPlayer = setInterval(updatePlayer, SPEED);
+        loopEnemy = setInterval(updateEnemy, SPEED);
         running = true;
     }
 
     function stopGame() {
-        window.clearInterval(loop);
+        window.clearInterval(loopPlayer);
+        window.clearInterval(loopEnemy);
         running = false;
     }
 
@@ -305,11 +355,20 @@ const Snake = (function() {
         }
         
         // space bar
-        if (e.keyCode == 32) {
+        switch (e.keyCode) {
+          case 32:
+            if(!running) {
+                pause();
+            }
+            else if (!Sideloader.visible()) {
+                beginDoubleSpeed();
+            }
+            break;
+          case 13:
             if (!Sideloader.visible()) pause();
+            break;
+          default:
         }
-        else {}
-
     }
 
     function tapHandler(e) {
@@ -391,8 +450,9 @@ const Snake = (function() {
 
         positions = null;       // 2D array to keep track of positions
 
-        loop = null;            // interval loop object
-
+        loopPlayer = null;            // interval loop object
+        loopEnemy = null;            // interval loop object
+        doubleSpeed = null;
 
         // clear the old blocks
         $(".block").remove(":not(#food)");
@@ -503,19 +563,33 @@ const Snake = (function() {
     }
 
     // return head position
+    Snake.getPosition = function() {
+        return {x: snakes[0].head.x, y: snakes[0].head.y};
+    }
+    // return head position
     Snake.getPosition = function(num) {
         return {x: snakes[num].head.x, y: snakes[num].head.y};
     }
 
     // return tail position
+    Snake.getTailPosition = function() {
+        return {x: snakes[0].tail.x, y: snakes[0].tail.y};
+    }
+    // return tail position
     Snake.getTailPosition = function(num) {
         return {x: snakes[num].tail.x, y: snakes[num].tail.y};
     }
 
-    // return food position
+    // return main food position
     Snake.getFoodPosition = function() {
         var food = document.getElementById("food");
         return {x: food.x, y: food.y};
+    }
+    
+    // return all foods position
+    Snake.getFoodsPosition = function() {
+        var foods = document.getElementsByClassName("food");
+        return foods;
     }
 
     // return length of the snake
@@ -524,8 +598,16 @@ const Snake = (function() {
     }
 
     // return direction of the snake
+    Snake.getDirection = function() {
+        return snakes[0].direction;
+    }
+    // return direction of the snake
     Snake.getDirection = function(num) {
         return snakes[num].direction;
+    }
+
+    Snake.getSnake = function() {
+        return snakes[0];
     }
 
     Snake.getSnake = function(num) {
