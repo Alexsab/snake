@@ -7,11 +7,11 @@ const Snake = (function() {
     "use strict";
 
     // CONSTANTS (defaults for mobile) //
-    var SPEED = 100;            // milliseconds between update. 
+    var SPEED = 200;            // milliseconds between update. 
     var SIZE = 15;              // block size
     var LENGTH = 5;             // length of the snake initially
 
-    var DESKTOP_SPEED = 50;
+    var DESKTOP_SPEED = 100;
     var DESKTOP_SIZE = 20;
 
     var DESKTOP_CHEAT = "up,left,down,left,right,right,right";
@@ -27,7 +27,8 @@ const Snake = (function() {
     var cheatEnabled;           // is the cheat function active
     var history;                // button history to enable cheat
 
-    var score;                  // current score
+    var score;                  // current score user
+    var score_enemy;            // current score enemy
 
     var width;                  // number of tiles across
     var height;                 // number of tiles top to bottom
@@ -36,64 +37,110 @@ const Snake = (function() {
 
     var loop;                   // interval loop object
 
-    var direction;              // direction to update in
-    var blocks;
+    var snakes;                 // array for all snakes
 
-    var tail;                   // pointer to the tail block
-    var head;                   // pointer to head block
+    var snakes_count = 3;        // count of enemy
+
+    var enemy_mind = 0.9;        // if random < enemy_mind then enemy moves to food
+
+    //var direction;              // direction to update in
+    //var blocks;
+
+    //var tail;                   // pointer to the tail block
+    //var head;                   // pointer to head block
 
     function update() {
-        // execute cheat
-        if (cheatEnabled) {
-            // validate the cheat method
-            if (Cheat && typeof(Cheat.cheat) == "function") {
-                var new_direction = Cheat.cheat();      // execute cheat
+        for (var num = 0; num < snakes_count; num++) {
+            if (snakes[num] == null) continue;
+            var theSnake = snakes[num];
+            
+            // execute cheat
+            if (cheatEnabled) {
+                // validate the cheat method
+                if (Cheat && typeof(Cheat.cheat) == "function") {
+                    var new_direction = Cheat.cheat();      // execute cheat
 
-                // validate returned direction
-                if (new_direction &&                                                                            // direction exists
-                    typeof(new_direction.x) == "number" && new_direction.x >= -1 && new_direction.x <= 1 &&     // x is a number between -1 and 1
-                    typeof(new_direction.y) == "number" && new_direction.y >= -1 && new_direction.y <= 1 &&     // y is a number between -1 and 1
-                    (Math.abs(new_direction.x) + Math.abs(new_direction.y) == 1) &&                             // not a diagonal move or no move
-                    !(new_direction.x == 0 && direction.x == 0) &&                                              // not a 180
-                    !(new_direction.y == 0 && direction.y == 0) ) {
-                    direction = new_direction;
+                    // validate returned direction
+                    if (new_direction &&                                                                            // direction exists
+                        typeof(new_direction.x) == "number" && new_direction.x >= -1 && new_direction.x <= 1 &&     // x is a number between -1 and 1
+                        typeof(new_direction.y) == "number" && new_direction.y >= -1 && new_direction.y <= 1 &&     // y is a number between -1 and 1
+                        (Math.abs(new_direction.x) + Math.abs(new_direction.y) == 1) &&                             // not a diagonal move or no move
+                        !(new_direction.x == 0 && direction.x == 0) &&                                              // not a 180
+                        !(new_direction.y == 0 && direction.y == 0) ) {
+                        direction = new_direction;
+                    }
+                }
+                else {
+                    // disable cheat
+                    cheatEnabled = false;
+                    $("#board").removeClass("red-border");
+                    $(".button").removeClass("red-border");
                 }
             }
-            else {
-                // disable cheat
-                cheatEnabled = false;
-                $("#board").removeClass("red-border");
-                $(".button").removeClass("red-border");
+
+            if(num > 0) {
+                if (Cheat && typeof(Cheat.cheat) == "function") {
+                    var new_direction = Cheat.cheat(num);      // execute cheat
+
+                    // validate returned direction
+                    if (new_direction &&                                                                            // direction exists
+                        typeof(new_direction.x) == "number" && new_direction.x >= -1 && new_direction.x <= 1 &&     // x is a number between -1 and 1
+                        typeof(new_direction.y) == "number" && new_direction.y >= -1 && new_direction.y <= 1 &&     // y is a number between -1 and 1
+                        (Math.abs(new_direction.x) + Math.abs(new_direction.y) == 1) &&                             // not a diagonal move or no move
+                        !(new_direction.x == 0 && theSnake.direction.x == 0) &&                                              // not a 180
+                        !(new_direction.y == 0 && theSnake.direction.y == 0)  && Math.random() < enemy_mind) {
+                        theSnake.direction = new_direction;
+                    }
+                }
             }
+
+            // set new position
+            var x = theSnake.head.x + theSnake.direction.x;
+            var y = theSnake.head.y + theSnake.direction.y;
+
+            // check position
+            var check = checkPosition(x, y);
+            if (check == 1) {                   // hit something
+                if(num == 0) {
+                    gameOver();
+                    return;
+                } 
+                else {
+                    for (var ib = 0; ib < theSnake.blocks.length; ib++) {
+                        var theBlock = snakes[num].blocks[ib];
+                        positions[theBlock.x][theBlock.y] = 0;
+                        $(theBlock).remove();
+                    }
+                    snakes[num] = null;
+                    continue;
+                }
+            }
+            else if (check == 2) {              // hit food
+                if(num > 0) {
+                    score_enemy++;
+                }
+                else {
+                    score++;
+                }
+                createBlock(theSnake,0,0)
+                placeFood();
+            }
+
+            // move tail block to front
+            positions[theSnake.tail.x][theSnake.tail.y] = 0;
+            positions[x][y] = 1;
+            moveTo(theSnake.tail, x, y);
+
+            $(theSnake.head).removeClass('head');
+            // update linked list
+            theSnake.head.next = theSnake.tail;
+            theSnake.head = theSnake.tail;
+            theSnake.tail = theSnake.tail.next;
+
+            $(theSnake.head).addClass('head');
+
+            turned = false;
         }
-
-        // set new position
-        var x = head.x + direction.x;
-        var y = head.y + direction.y;
-
-        // check position
-        var check = checkPosition(x, y);
-        if (check == 1) {                   // hit something
-            gameOver();
-            return;
-        }
-        else if (check == 2) {              // hit food
-            score++;
-            createBlock(0,0)
-            placeFood();
-        }
-
-        // move tail block to front
-        positions[tail.x][tail.y] = 0;
-        positions[x][y] = 1;
-        moveTo(tail, x, y);
-
-        // update linked list
-        head.next = tail;
-        head = tail;
-        tail = tail.next;
-
-        turned = false;
     }
 
     function placeFood() {
@@ -112,11 +159,12 @@ const Snake = (function() {
 
     function gameOver() {
         stopGame();
-        $("#message").empty().append(score);
+        $("#message").empty().append(score + " : " + score_enemy);
         $(".block").css("zIndex", 0);
         $("#message").css("zIndex", 1);
         $("#message").show();
         score = 0;
+        score_enemy = 0;
         set = false;
     }
 
@@ -135,9 +183,10 @@ const Snake = (function() {
         block.y = y;
     }
 
-    function createBlock(x, y) {
+    function createBlock(theSnake, x, y, head) {
         var block = document.createElement("div");
         block.className = "block";
+        if(head) block.className += " head";
         $(block).css("height", SIZE);
         $(block).css("width", SIZE);
 
@@ -146,10 +195,10 @@ const Snake = (function() {
         block.y = y;
         positions[x][y] = 1;
 
-        block.next = tail;                              // update linked list
-        tail = block;
+        block.next = theSnake.tail;                              // update linked list
+        theSnake.tail = block;
 
-        blocks.push(block);
+        theSnake.blocks.push(block);
         $("#board").append(block);
     }
 
@@ -164,20 +213,20 @@ const Snake = (function() {
         running = false;
     }
 
-    function left() {
-        direction = {x: -1, y: 0};
+    function left(theSnake) {
+        theSnake.direction = {x: -1, y: 0};
     }
 
-    function right() {
-        direction = {x: 1, y: 0};
+    function right(theSnake) {
+        theSnake.direction = {x: 1, y: 0};
     }
 
-    function up() {
-        direction = {x: 0, y: -1};
+    function up(theSnake) {
+        theSnake.direction = {x: 0, y: -1};
     }
 
-    function down() {
-        direction = {x: 0, y: 1};
+    function down(theSnake) {
+        theSnake.direction = {x: 0, y: 1};
     }
 
     function pause() {
@@ -230,6 +279,9 @@ const Snake = (function() {
 
     function keyHandler(e) {
         //console.log(e.keyCode);
+        //
+        var theSnake = snakes[0];
+
         if (e.keyCode == 37) history.add("left");
         else if (e.keyCode == 38) history.add("up");
         else if (e.keyCode == 39) history.add("right");
@@ -244,10 +296,10 @@ const Snake = (function() {
 
         // arrow keys
         if (running && !turned) {
-            if (e.keyCode == 37 && direction.y != 0) left();
-            else if (e.keyCode == 38 && direction.x != 0) up();
-            else if (e.keyCode == 39 && direction.y != 0) right();
-            else if (e.keyCode == 40 && direction.x != 0) down();
+            if (e.keyCode == 37 && theSnake.direction.y != 0) left(theSnake);
+            else if (e.keyCode == 38 && theSnake.direction.x != 0) up(theSnake);
+            else if (e.keyCode == 39 && theSnake.direction.y != 0) right(theSnake);
+            else if (e.keyCode == 40 && theSnake.direction.x != 0) down(theSnake);
             else {}
             turned = true;
         }
@@ -262,7 +314,7 @@ const Snake = (function() {
 
     function tapHandler(e) {
         //console.log(e.target);
-
+        var theSnake = snakes[0];
         // determine which key
         var key = "pane";
         if (e.target == document.getElementById("top-left")) key = "up left";
@@ -279,10 +331,10 @@ const Snake = (function() {
 
         // arrows
         if (running && !turned) {
-            if (new RegExp("left").test(key) && direction.y != 0) left();
-            else if (new RegExp("up").test(key) && direction.x != 0) up();
-            else if (new RegExp("right").test(key) && direction.y != 0) right();
-            else if (new RegExp("down").test(key) && direction.x != 0) down();
+            if (new RegExp("left").test(key) && theSnake.direction.y != 0) left(theSnake);
+            else if (new RegExp("up").test(key) && theSnake.direction.x != 0) up(theSnake);
+            else if (new RegExp("right").test(key) && theSnake.direction.y != 0) right(theSnake);
+            else if (new RegExp("down").test(key) && theSnake.direction.x != 0) down(theSnake);
             else {}
             turned = true;
         }
@@ -332,6 +384,7 @@ const Snake = (function() {
         history = new FixedQueue(7);
 
         score = 0;
+        score_enemy = 0;
 
         width = 0;              // number of tiles across
         height = 0;             // number of tiles top to bottom
@@ -340,18 +393,9 @@ const Snake = (function() {
 
         loop = null;            // interval loop object
 
-        direction = {           // direction to update in
-            x: 1,
-            y: 0
-        };
-        blocks = [];
-
-        tail = null;            // pointer to the tail block
-        head = null;
 
         // clear the old blocks
         $(".block").remove(":not(#food)");
-        blocks = [];
         $("#message").empty();
         $("#message").hide();
 
@@ -367,11 +411,39 @@ const Snake = (function() {
             }
         }
 
-        // initialize snake
-        for (var i = LENGTH - 1; i >= 0; i--) {
-            createBlock(i, 0);
+        snakes = new Array();
+        for (var ii = 0; ii < snakes_count; ii++) {
+            var snake_ii = {
+                direction: {           // direction to update in
+                    x: 1,
+                    y: 0
+                },
+                blocks: [],
+
+                tail: null,            // pointer to the tail block
+                head: null
+            };
+            
+            // initilize snake
+            for (var i = LENGTH - 1; i >= 0; i--) {
+                var head = (i == LENGTH - 1) ? 1 : 0;
+                if(ii > 0){
+                    if(ii % 2 == 0) {
+                        createBlock(snake_ii, width-(i+1), height-ii*5, head);
+                        snake_ii.direction.x = -1;
+                    }
+                    else {
+                        createBlock(snake_ii, i, height-ii*5, head);
+                    }
+                }
+                else {
+                    createBlock(snake_ii, i, 0, head);
+                }
+            }
+            snake_ii.head = snake_ii.blocks[0];
+
+            snakes.push(snake_ii);
         }
-        head = blocks[0];
 
         // place food
         $("#food").css("height", SIZE);
@@ -431,13 +503,13 @@ const Snake = (function() {
     }
 
     // return head position
-    Snake.getPosition = function() {
-        return {x: head.x, y: head.y};
+    Snake.getPosition = function(num) {
+        return {x: snakes[num].head.x, y: snakes[num].head.y};
     }
 
     // return tail position
-    Snake.getTailPosition = function() {
-        return {x: tail.x, y: tail.y};
+    Snake.getTailPosition = function(num) {
+        return {x: snakes[num].tail.x, y: snakes[num].tail.y};
     }
 
     // return food position
@@ -452,8 +524,12 @@ const Snake = (function() {
     }
 
     // return direction of the snake
-    Snake.getDirection = function() {
-        return direction;
+    Snake.getDirection = function(num) {
+        return snakes[num].direction;
+    }
+
+    Snake.getSnake = function(num) {
+        return snakes[num];
     }
 
     return Snake;

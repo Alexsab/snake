@@ -36,7 +36,7 @@ Cheat = (function () {
     var bad_moves = [];
 
     // sort all four possible moves into the five categories
-    function sort_moves() {
+    function sort_moves(num) {
         // clear categories
         good_moves = [];
         fine_moves = [];
@@ -47,14 +47,14 @@ Cheat = (function () {
         // sort the moves
         for (var i = 0; i < moves.length; i++) {
             // define deciders
-            var kill = kills_you(moves[i]);
+            var kill = kills_you(num, moves[i]);
             if (kill) {
                 bad_moves.push(moves[i]);
                 continue;                   // skip calculations this is a bad move
             }
 
-            var closer = closer_to_food(moves[i]);
-            var perc = percolates(moves[i]);
+            var closer = closer_to_food(num, moves[i]);
+            var perc = percolates(num, moves[i]);
 
             if (!closer && !perc) sketchy_moves.push(moves[i]);
             else if (closer && !perc) decent_moves.push(moves[i]);
@@ -73,16 +73,16 @@ Cheat = (function () {
     }
 
     // does the move kill you
-    function kills_you(move) {
-        var pos = Snake.getPosition();
+    function kills_you(num, move) {
+        var pos = Snake.getPosition(num);
         var check = Snake.checkPosition(pos.x + move.x, pos.y + move.y);
         if (check == 1) return true;
         else return false;
     }
 
     // does the move get closer to the food
-    function closer_to_food(move) {
-        var pos = Snake.getPosition();
+    function closer_to_food(num, move) {
+        var pos = Snake.getPosition(num);
         var new_pos = {x: pos.x + move.x, y: pos.y + move.y};
         var food_pos = Snake.getFoodPosition();
 
@@ -94,14 +94,14 @@ Cheat = (function () {
     }
 
     // does the board percolate
-    function percolates(move) {
+    function percolates(num, move) {
         var positions = Snake.getPositions();
         var height = Snake.getHeight();
         var width = Snake.getWidth();
 
         // move tail to where we're going
-        var head = Snake.getPosition();
-        var tail = Snake.getTailPosition();
+        var head = Snake.getPosition(num);
+        var tail = Snake.getTailPosition(num);
         positions[tail.x][tail.y] = 0;
         positions[head.x + move.x][head.y + move.y] = 1;
 
@@ -139,8 +139,8 @@ Cheat = (function () {
     // Outward facing API
     BrutePerc = {};
 
-    BrutePerc.cheat = function() {
-        sort_moves();
+    BrutePerc.cheat = function(num) {
+        sort_moves(num);
         return choose_move();
     }
 

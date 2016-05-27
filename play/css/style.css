@@ -21,6 +21,10 @@ body {
     background: black;
 }
 
+.block.head {
+    background-color: blue;
+}
+
 .block {
     position: absolute;
     background-color: white;
