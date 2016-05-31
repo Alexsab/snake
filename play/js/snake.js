@@ -14,7 +14,12 @@ const Snake = (function() {
     var DESKTOP_SPEED = 100;
     var DESKTOP_SIZE = 20;
 
+    var current_speed;              // to know current speed
+    var hideSpeedTimer;             // timer
+    var SHOWING_SPEED = 1000;       // milliseconds
+
     var TIME_DOUBLE_SPEED = 1000; // milliseconds
+    var MAX_FOOD_COUNT = 10;
 
     var DESKTOP_CHEAT = "up,left,down,left,right,right,right";
     var MOBILE_CHEAT = "up left,down left,down right,down left,up right,up right,up right";
@@ -42,17 +47,26 @@ const Snake = (function() {
 
     var doubleSpeed;
 
+    var foods;                     // array for food
+
     var snakes;                 // array for all snakes
 
-    var snakes_count = 3;        // count of enemy
+    var snakes_count = 6;        // count of snakes
 
-    var enemy_mind = 0.9;        // if random < enemy_mind then enemy moves to food
+    var enemy_mind = .8;        // if random < enemy_mind then enemy moves to food
 
     //var direction;              // direction to update in
     //var blocks;
 
     //var tail;                   // pointer to the tail block
     //var head;                   // pointer to head block
+    
+    var moves = [
+        {x: -1, y: 0},      // left
+        {x: 0, y: -1},      // up
+        {x: 1, y: 0},       // right
+        {x: 0, y: 1}        // down
+    ];
 
     function update(num) {
         var theSnake = snakes[num];
@@ -67,9 +81,9 @@ const Snake = (function() {
                     typeof(new_direction.x) == "number" && new_direction.x >= -1 && new_direction.x <= 1 &&     // x is a number between -1 and 1
                     typeof(new_direction.y) == "number" && new_direction.y >= -1 && new_direction.y <= 1 &&     // y is a number between -1 and 1
                     (Math.abs(new_direction.x) + Math.abs(new_direction.y) == 1) &&                             // not a diagonal move or no move
-                    !(new_direction.x == 0 && direction.x == 0) &&                                              // not a 180
-                    !(new_direction.y == 0 && direction.y == 0) ) {
-                    direction = new_direction;
+                    !(new_direction.x == 0 && theSnake.direction.x == 0) &&                                              // not a 180
+                    !(new_direction.y == 0 && theSnake.direction.y == 0) ) {
+                    theSnake.direction = new_direction;
                 }
             }
             else {
@@ -80,7 +94,7 @@ const Snake = (function() {
             }
         }
 
-        if(num > 0) {
+        if(num > 0  && Math.random() < enemy_mind) {
             if (CheatEnemy && typeof(CheatEnemy.cheat) == "function") {
                 var new_direction = CheatEnemy.cheat(num);      // execute cheat
 
@@ -90,10 +104,15 @@ const Snake = (function() {
                     typeof(new_direction.y) == "number" && new_direction.y >= -1 && new_direction.y <= 1 &&     // y is a number between -1 and 1
                     (Math.abs(new_direction.x) + Math.abs(new_direction.y) == 1) &&                             // not a diagonal move or no move
                     !(new_direction.x == 0 && theSnake.direction.x == 0) &&                                              // not a 180
-                    !(new_direction.y == 0 && theSnake.direction.y == 0)  && Math.random() < enemy_mind) {
+                    !(new_direction.y == 0 && theSnake.direction.y == 0) ) {
                     theSnake.direction = new_direction;
                 }
             }
+        }
+
+        if(theSnake.turnBackFlag) {
+            theSnake.turnBackFlag = false;
+            turnBack(theSnake);
         }
 
         // set new position
@@ -108,11 +127,8 @@ const Snake = (function() {
                 return;
             } 
             else {
-                for (var ib = 0; ib < theSnake.blocks.length; ib++) {
-                    var theBlock = theSnake.blocks[ib];
-                    positions[theBlock.x][theBlock.y] = 0;
-                    $(theBlock).remove();
-                }
+                dieSnake(theSnake);
+                enemy_mind += (snakes_count > 1) ? .2/(snakes_count-1) : .2;
                 snakes[num] = null;
                 return;
             }
@@ -125,7 +141,7 @@ const Snake = (function() {
                 score++;
             }
             createBlock(theSnake,0,0)
-            placeFood();
+            findFoodUnderHead(theSnake, x, y);
         }
 
         updateBoard(theSnake, x, y);
@@ -157,22 +173,80 @@ const Snake = (function() {
 
         $(theSnake.head).addClass('head');
 
+        theSnake.blocks.unshift(theSnake.blocks.pop());
+
         turned = false;
     }
 
     function beginDoubleSpeed() {
         if(doubleSpeed == null) {
             loseTail(snakes[0]);
-            clearInterval(loopPlayer);
-            loopPlayer = setInterval(updatePlayer, SPEED/2);
+            window.clearInterval(loopPlayer);
+            current_speed = SPEED/2;
+            loopPlayer = setInterval(updatePlayer, current_speed);
             doubleSpeed = setTimeout(endDoubleSpeed, TIME_DOUBLE_SPEED);
         }
     }
 
     function endDoubleSpeed() {
-        clearInterval(loopPlayer);
-        loopPlayer = setInterval(updatePlayer, SPEED);
+        window.clearInterval(loopPlayer);
+        if(running) {
+            current_speed = SPEED;
+            loopPlayer = setInterval(updatePlayer, current_speed);
+        }
         doubleSpeed = null;
+    }
+
+    function controlSpeed(key) {
+        window.clearInterval(loopPlayer);
+        window.clearInterval(loopEnemy);
+        if(key >= 48 && key <= 57 ) {
+            key = (key == 48)? 10 : key - 48;
+            current_speed = SPEED*key;
+            loopPlayer = setInterval(updatePlayer, current_speed);
+            loopEnemy = setInterval(updateEnemy, current_speed);
+        }
+        else if(key >= 96 && key <= 105 ) {
+            key = key - 96;
+            current_speed = SPEED - SPEED/10*key;
+            loopPlayer = setInterval(updatePlayer, current_speed);
+            loopEnemy = setInterval(updateEnemy, SPEED);
+        }
+        else {
+            switch(key) {
+                case 189: // -
+                    current_speed = current_speed + 10;
+                    loopEnemy = setInterval(updateEnemy, current_speed);
+                    break;
+                case 187: // =
+                    current_speed = current_speed - 10;
+                    loopEnemy = setInterval(updateEnemy, current_speed);
+                    break;
+                case 109: // Num-
+                    current_speed = current_speed + 10;
+                    loopEnemy = setInterval(updateEnemy, SPEED);
+                    break;
+                case 107: // Num+
+                    current_speed = current_speed - 10;
+                    loopEnemy = setInterval(updateEnemy, SPEED);
+                    break;
+            }
+            loopPlayer = setInterval(updatePlayer, current_speed);
+        }
+        showSpeed(current_speed);
+    }
+
+    function showSpeed(theSpeed) {
+        $("#speed").empty().append(theSpeed + " milliseconds");
+        $(".block").css("zIndex", 0);
+        $("#speed").css("zIndex", 2);
+        $("#speed").show();
+        hideSpeedTimer = setTimeout(hideSpeed, SHOWING_SPEED);
+    }
+
+    function hideSpeed() {
+        $("#speed").empty();
+        $("#speed").hide();
     }
 
     function createFood() {
@@ -180,27 +254,40 @@ const Snake = (function() {
         food.className = "block food";
         $(food).css("height", SIZE);
         $(food).css("width", SIZE);
+        placeFood(food);
+        foods.push(food);
+        $("#board").append(food);
     }
 
-    function placeFood() {
+    function placeFood(food) {
         var x = Math.floor(width * Math.random());
         var y = Math.floor(height * Math.random());
 
         if (positions[x][y] == 0) {
-            moveTo($("#food"), x, y);
-            positions[x][y] = 2;
-            var food = document.getElementById("food");
-            food.x = x;
-            food.y = y;
+            placeFoodTo(food, x, y);
         }
-        else placeFood();
+        else placeFood(food);
     }
 
     function placeFoodTo(food, x, y) {
-        moveTo($(food), x, y);
+        moveTo(food, x, y);
         positions[x][y] = 2;
-        food.x = x;
-        food.y = y;
+    }
+
+    function findFoodUnderHead(theSnake, x, y) {
+        //var foods = document.getElementsByClassName("food");
+        for (var i = 0; i < foods.length; i++) {
+            if(x == foods[i].x && y == foods[i].y) {
+                if(foods.length > MAX_FOOD_COUNT) {
+                    var delFood = foods.splice(i, 1);
+                    $(delFood).remove();
+                }
+                else {
+                    placeFood(foods[i]);
+                }
+            }
+            
+        }
     }
 
     function gameOver() {
@@ -228,7 +315,11 @@ const Snake = (function() {
     }
 
     function loseTail(theSnake) {
-        
+        $(theSnake.tail).addClass('food');
+        foods.push(theSnake.tail);
+        positions[theSnake.tail.x][theSnake.tail.y] = 2;
+        theSnake.tail = theSnake.tail.next;
+        theSnake.blocks.pop();
     }
 
     function createBlock(theSnake, x, y, head) {
@@ -250,10 +341,86 @@ const Snake = (function() {
         $("#board").append(block);
     }
 
+    function shuffle(array) {
+        var currentIndex = array.length, temporaryValue, randomIndex;
+
+        // While there remain elements to shuffle...
+        while (0 !== currentIndex) {
+            // Pick a remaining element...
+            randomIndex = Math.floor(Math.random() * currentIndex);
+            currentIndex -= 1;
+
+            // And swap it with the current element.
+            temporaryValue = array[currentIndex];
+            array[currentIndex] = array[randomIndex];
+            array[randomIndex] = temporaryValue;
+        }
+
+        return array;
+    }
+
+    function dieSnake(theSnake) {
+        $(theSnake.head).removeClass('head');
+        
+        for (var ib = 0; ib < theSnake.blocks.length; ib++) {
+            
+            var theBlock = theSnake.blocks[ib];
+            positions[theBlock.x][theBlock.y] = 0;
+            
+            if(ib % 2 == 0) {
+                spreadBlock(theBlock);
+            }
+            else {
+                $(theBlock).remove();
+            }
+        }
+    }
+
+    function spreadBlock(theBlock) {
+        shuffle(moves);
+        moves.push({x: 0, y: 0});
+        for (var i = 0; i < moves.length; i++) {
+            var new_pos = {x: theBlock.x + moves[i].x, y: theBlock.y + moves[i].y};
+            if (new_pos.x < 0 || new_pos.x >= width || new_pos.y < 0 || new_pos.y >= height) continue;
+            if(positions[new_pos.x][new_pos.y] == 0) {
+                $(theBlock).addClass('food');
+                foods.push(theBlock);
+                moveTo(theBlock, new_pos.x, new_pos.y)
+                positions[new_pos.x][new_pos.y] = 2;
+                break;
+            }
+        }
+        moves.pop({x: 0, y: 0});
+    }
+
+    function turnBack(theSnake) {
+        $(theSnake.head).removeClass('head');
+        $(theSnake.tail).addClass('head');
+        
+
+        if(theSnake.blocks.length > 1) {
+            theSnake.direction = { x: theSnake.tail.x - theSnake.tail.next.x, y: theSnake.tail.y - theSnake.tail.next.y };
+        }
+        else {
+            theSnake.direction = { x: -theSnake.direction.x, y: -theSnake.direction.y };
+        }
+
+        theSnake.tail = theSnake.head;
+        theSnake.head = theSnake.head.next;
+        
+        for (var i = 0; i < theSnake.blocks.length; i++) {
+            theSnake.blocks[i].next = (i < theSnake.blocks.length-1) ? theSnake.blocks[i+1] : theSnake.blocks[0];
+        }
+
+        theSnake.blocks.reverse();
+        
+    }
+
     function startGame() {
         // start update loop
-        loopPlayer = setInterval(updatePlayer, SPEED);
-        loopEnemy = setInterval(updateEnemy, SPEED);
+        current_speed = SPEED;
+        loopPlayer = setInterval(updatePlayer, current_speed);
+        loopEnemy = setInterval(updateEnemy, current_speed);
         running = true;
     }
 
@@ -354,21 +521,35 @@ const Snake = (function() {
             turned = true;
         }
         
-        // space bar
-        switch (e.keyCode) {
-          case 32:
-            if(!running) {
+        if(!Sideloader.visible()){
+            
+        if (running && (e.keyCode >= 48 && e.keyCode <= 57 || e.keyCode >= 96 && e.keyCode <= 105)) controlSpeed(e.keyCode);
+
+            // space bar
+            switch (e.keyCode) {
+              case 189:
+              case 187:
+              case 109:
+              case 107:
+                if(running) controlSpeed(e.keyCode);
+                break;
+              case 32:
+                if(!running) {
+                    pause();
+                }
+                else {
+                    beginDoubleSpeed();
+                }
+                break;
+              case 13:
                 pause();
+                break;
+              case 88:
+                if (!theSnake.turnBackFlag) theSnake.turnBackFlag = true;
+                break;
+              default:
             }
-            else if (!Sideloader.visible()) {
-                beginDoubleSpeed();
-            }
-            break;
-          case 13:
-            if (!Sideloader.visible()) pause();
-            break;
-          default:
-        }
+        } 
     }
 
     function tapHandler(e) {
@@ -412,6 +593,7 @@ const Snake = (function() {
         if (desktop) {
             SPEED = DESKTOP_SPEED;
             SIZE = DESKTOP_SIZE;
+            current_speed = SPEED;
         }
 
         var percent_x = 1;
@@ -454,10 +636,18 @@ const Snake = (function() {
         loopEnemy = null;            // interval loop object
         doubleSpeed = null;
 
+        current_speed = SPEED;
+
         // clear the old blocks
-        $(".block").remove(":not(#food)");
+        //$(".block").remove(":not(#food)");
+        $(".block").remove();
         $("#message").empty();
         $("#message").hide();
+
+        $("#speed").empty();
+        $("#speed").hide();
+
+        foods = [];
 
         // resize window
         resizeWindow();
@@ -472,6 +662,7 @@ const Snake = (function() {
         }
 
         snakes = new Array();
+        var step = Math.floor(height / snakes_count);
         for (var ii = 0; ii < snakes_count; ii++) {
             var snake_ii = {
                 direction: {           // direction to update in
@@ -479,7 +670,7 @@ const Snake = (function() {
                     y: 0
                 },
                 blocks: [],
-
+                turnBackFlag: false,
                 tail: null,            // pointer to the tail block
                 head: null
             };
@@ -489,11 +680,11 @@ const Snake = (function() {
                 var head = (i == LENGTH - 1) ? 1 : 0;
                 if(ii > 0){
                     if(ii % 2 == 0) {
-                        createBlock(snake_ii, width-(i+1), height-ii*5, head);
+                        createBlock(snake_ii, width-(i+1), height-ii*step, head);
                         snake_ii.direction.x = -1;
                     }
                     else {
-                        createBlock(snake_ii, i, height-ii*5, head);
+                        createBlock(snake_ii, i, height-ii*step, head);
                     }
                 }
                 else {
@@ -505,10 +696,10 @@ const Snake = (function() {
             snakes.push(snake_ii);
         }
 
-        // place food
-        $("#food").css("height", SIZE);
-        $("#food").css("width", SIZE);
-        placeFood();
+
+        for (var f = 0; f < MAX_FOOD_COUNT; f++) {
+            createFood();
+        }
 
         set = true;
     }
@@ -563,20 +754,14 @@ const Snake = (function() {
     }
 
     // return head position
-    Snake.getPosition = function() {
-        return {x: snakes[0].head.x, y: snakes[0].head.y};
-    }
-    // return head position
     Snake.getPosition = function(num) {
+        if(!num) num = 0;
         return {x: snakes[num].head.x, y: snakes[num].head.y};
     }
 
     // return tail position
-    Snake.getTailPosition = function() {
-        return {x: snakes[0].tail.x, y: snakes[0].tail.y};
-    }
-    // return tail position
     Snake.getTailPosition = function(num) {
+        if(!num) num = 0;
         return {x: snakes[num].tail.x, y: snakes[num].tail.y};
     }
 
@@ -588,7 +773,7 @@ const Snake = (function() {
     
     // return all foods position
     Snake.getFoodsPosition = function() {
-        var foods = document.getElementsByClassName("food");
+        //var foods = document.getElementsByClassName("food");
         return foods;
     }
 
@@ -598,20 +783,19 @@ const Snake = (function() {
     }
 
     // return direction of the snake
-    Snake.getDirection = function() {
-        return snakes[0].direction;
-    }
-    // return direction of the snake
     Snake.getDirection = function(num) {
+        if(!num) num = 0;
         return snakes[num].direction;
     }
 
-    Snake.getSnake = function() {
-        return snakes[0];
+    Snake.getSnake = function(num) {
+        if(!num) num = 0;
+        return snakes[num];
     }
 
-    Snake.getSnake = function(num) {
-        return snakes[num];
+    Snake.die = function(num) {
+        if(!num) num = 0;
+        dieSnake(num);
     }
 
     return Snake;

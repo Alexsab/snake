@@ -36,7 +36,7 @@ body {
     background-color: red;
 }
 
-.message {
+.message, .speed {
     position: absolute;
     height: 400px;
     width: 800px;
@@ -48,6 +48,11 @@ body {
     font-size: 200px;
     text-align: center;
     text-shadow: -3px 0 black, 0 3px black, 3px 0 black, 0 -3px black;
+}
+
+.speed {
+    top: 10%;
+    font-size: 50px;
 }
 
 .board {

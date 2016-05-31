@@ -53,7 +53,8 @@ Cheat = (function () {
                 continue;                   // skip calculations this is a bad move
             }
 
-            var closer = closer_to_food(moves[i]);
+            var food = find_closer_food();
+            var closer = closer_to_food(moves[i], food);
             var perc = percolates(moves[i]);
 
             if (!closer && !perc) sketchy_moves.push(moves[i]);
@@ -80,11 +81,28 @@ Cheat = (function () {
         else return false;
     }
 
+    function find_closer_food() {
+        var pos = Snake.getPosition();
+        var foods_pos = Snake.getFoodsPosition();
+        var closer_food = null;
+        var minLenght = null;
+
+        for (var i = 0; i < foods_pos.length; i++) {
+            //var length = Math.sqrt(Math.pow(Math.abs(pos.x - foods_pos[i].x), 2) + Math.pow(Math.abs(pos.y - foods_pos[i].y), 2));
+            var length = Math.abs(pos.x - foods_pos[i].x) + Math.abs(pos.y - foods_pos[i].y);
+            if (closer_food == null || length < minLenght) {
+                minLenght = length;
+                closer_food = foods_pos[i];
+            }
+        }
+        return closer_food;
+    }
+
     // does the move get closer to the food
-    function closer_to_food(move) {
+    function closer_to_food(move, food) {
         var pos = Snake.getPosition();
         var new_pos = {x: pos.x + move.x, y: pos.y + move.y};
-        var food_pos = Snake.getFoodPosition();
+        var food_pos = food;//Snake.getFoodPosition();
 
         if ((Math.abs(new_pos.x - food_pos.x) < Math.abs(pos.x - food_pos.x)) || 
             (Math.abs(new_pos.y - food_pos.y) < Math.abs(pos.y - food_pos.y)) ) {

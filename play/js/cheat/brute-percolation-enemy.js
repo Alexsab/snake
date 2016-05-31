@@ -44,6 +44,7 @@ CheatEnemy = (function () {
         sketchy_moves = [];
         bad_moves = [];
 
+        shuffle(moves);
         // sort the moves
         for (var i = 0; i < moves.length; i++) {
             // define deciders
@@ -52,8 +53,8 @@ CheatEnemy = (function () {
                 bad_moves.push(moves[i]);
                 continue;                   // skip calculations this is a bad move
             }
-
-            var closer = closer_to_food(num, moves[i]);
+            var food = find_closer_food(num);
+            var closer = closer_to_food(num, moves[i], food);
             var perc = percolates(num, moves[i]);
 
             if (!closer && !perc) sketchy_moves.push(moves[i]);
@@ -61,6 +62,24 @@ CheatEnemy = (function () {
             else if (!closer && perc) fine_moves.push(moves[i]);
             else good_moves.push(moves[i]);
         }
+    }
+
+    function shuffle(array) {
+        var currentIndex = array.length, temporaryValue, randomIndex;
+
+        // While there remain elements to shuffle...
+        while (0 !== currentIndex) {
+            // Pick a remaining element...
+            randomIndex = Math.floor(Math.random() * currentIndex);
+            currentIndex -= 1;
+
+            // And swap it with the current element.
+            temporaryValue = array[currentIndex];
+            array[currentIndex] = array[randomIndex];
+            array[randomIndex] = temporaryValue;
+        }
+
+        return array;
     }
 
     // choose the best move
@@ -80,17 +99,36 @@ CheatEnemy = (function () {
         else return false;
     }
 
+    function find_closer_food(num) {
+        var pos = Snake.getPosition(num);
+        var foods_pos = Snake.getFoodsPosition();
+        var closer_food = null;
+        var minLenght = null;
+
+        for (var i = 0; i < foods_pos.length; i++) {
+            //var length = Math.sqrt(Math.pow(Math.abs(pos.x - foods_pos[i].x), 2) + Math.pow(Math.abs(pos.y - foods_pos[i].y), 2));
+            var length = Math.abs(pos.x - foods_pos[i].x) + Math.abs(pos.y - foods_pos[i].y);
+            if (closer_food == null || length < minLenght) {
+                minLenght = length;
+                closer_food = foods_pos[i];
+            }
+        }
+        return closer_food;
+    }
+
     // does the move get closer to the food
-    function closer_to_food(num, move) {
+    function closer_to_food(num, move, food) {
         var pos = Snake.getPosition(num);
         var new_pos = {x: pos.x + move.x, y: pos.y + move.y};
-        var food_pos = Snake.getFoodPosition();
+        var food_pos = food;//Snake.getFoodPosition();
 
         if ((Math.abs(new_pos.x - food_pos.x) < Math.abs(pos.x - food_pos.x)) || 
             (Math.abs(new_pos.y - food_pos.y) < Math.abs(pos.y - food_pos.y)) ) {
             return true;
         }
-        else return false;
+        else {
+            return false;
+        }
     }
 
     // does the board percolate
