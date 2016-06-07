@@ -21,6 +21,9 @@ const Snake = (function() {
     var TIME_DOUBLE_SPEED = 1000; // milliseconds
     var MAX_FOOD_COUNT = 10;
 
+    var SNAKES_COUNT = 6;        // count of snakes
+    var ENEMY_MIND = .8;        // if random < ENEMY_MIND then enemy moves to food
+
     var DESKTOP_CHEAT = "up,left,down,left,right,right,right";
     var MOBILE_CHEAT = "up left,down left,down right,down left,up right,up right,up right";
 
@@ -50,10 +53,6 @@ const Snake = (function() {
     var foods;                     // array for food
 
     var snakes;                 // array for all snakes
-
-    var snakes_count = 6;        // count of snakes
-
-    var enemy_mind = .8;        // if random < enemy_mind then enemy moves to food
 
     //var direction;              // direction to update in
     //var blocks;
@@ -94,7 +93,7 @@ const Snake = (function() {
             }
         }
 
-        if(num > 0  && Math.random() < enemy_mind) {
+        if(num > 0  && Math.random() < ENEMY_MIND) {
             if (CheatEnemy && typeof(CheatEnemy.cheat) == "function") {
                 var new_direction = CheatEnemy.cheat(num);      // execute cheat
 
@@ -128,7 +127,7 @@ const Snake = (function() {
             } 
             else {
                 dieSnake(theSnake);
-                enemy_mind += (snakes_count > 1) ? .2/(snakes_count-1) : .2;
+                ENEMY_MIND += (SNAKES_COUNT > 1) ? .2/(SNAKES_COUNT-1) : .2;
                 snakes[num] = null;
                 return;
             }
@@ -153,7 +152,7 @@ const Snake = (function() {
     }
 
     function updateEnemy() {
-        for (var num = 1; num < snakes_count; num++) {
+        for (var num = 1; num < SNAKES_COUNT; num++) {
             if (snakes[num] == null) continue;
                 update(num);
         }
@@ -662,8 +661,8 @@ const Snake = (function() {
         }
 
         snakes = new Array();
-        var step = Math.floor(height / snakes_count);
-        for (var ii = 0; ii < snakes_count; ii++) {
+        var step = Math.floor(height / SNAKES_COUNT);
+        for (var ii = 0; ii < SNAKES_COUNT; ii++) {
             var snake_ii = {
                 direction: {           // direction to update in
                     x: 1,
